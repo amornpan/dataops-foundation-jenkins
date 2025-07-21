@@ -1,0 +1,22 @@
+database:
+  development:
+    server: "35.185.131.47"
+    database: "TestDB"
+    username: "SA"
+    # Password should be stored in Jenkins credentials
+    
+  staging:
+    server: "35.185.131.47" 
+    database: "TestDB_Staging"
+    username: "SA"
+    
+  production:
+    server: "35.185.131.47"
+    database: "TestDB_Prod" 
+    username: "SA"
+
+connection:
+  timeout: 30
+  pool_size: 5
+  max_overflow: 10
+  pool_timeout: 30

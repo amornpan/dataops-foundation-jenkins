@@ -1,0 +1,53 @@
+etl:
+  data_quality:
+    max_missing_percentage: 30
+    acceptable_max_null: 26
+    
+  processing:
+    chunk_size: 10000
+    memory_limit_mb: 500
+    processing_timeout_sec: 300
+    
+  validation:
+    min_test_coverage: 80
+    max_processing_time: 300
+    
+star_schema:
+  dimension_tables:
+    - "home_ownership_dim"
+    - "loan_status_dim" 
+    - "issue_d_dim"
+    
+  fact_tables:
+    - "loans_fact"
+    
+  backup_retention_days: 7
+
+data_sources:
+  primary:
+    file_path: "data/LoanStats_web_small.csv"
+    delimiter: ","
+    encoding: "utf-8"
+    has_headers: true
+    
+transformations:
+  date_columns:
+    - column: "issue_d"
+      format: "%b-%Y"
+      
+  percentage_columns:
+    - column: "int_rate"
+      remove_symbol: "%"
+      divide_by: 100
+      
+business_rules:
+  loan_amount:
+    min_value: 1000
+    max_value: 100000
+    
+  interest_rate:
+    min_value: 0.01
+    max_value: 0.50
+    
+  funding_ratio:
+    max_value: 1.0
