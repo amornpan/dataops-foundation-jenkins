@@ -56,9 +56,9 @@ python tests/test_etl_pipeline.py
 
 ### 4. ตั้งค่า Database
 ```sql
--- เชื่อมต่อไปยัง 35.185.131.47 ด้วย SA user
+-- เชื่อมต่อไปยัง mssql.minddatatech.com ด้วย SA user
 -- รัน SQL Script
-sqlcmd -S 35.185.131.47 -U SA -P Passw0rd123456 -d TestDB -i sql/create_star_schema.sql
+sqlcmd -S mssql.minddatatech.com -U SA -P Passw0rd123456 -d TestDB -i sql/create_star_schema.sql
 ```
 
 ## 🎯 คุณสมบัติหลัก
@@ -146,7 +146,7 @@ python tests/test_etl_pipeline.py
 ```yaml
 database:
   development:
-    server: "35.185.131.47"
+    server: "mssql.minddatatech.com"
     database: "TestDB"
     username: "SA"
 ```
@@ -200,4 +200,4 @@ etl:
 
 ---
 
-**หมายเหตุ**: โปรเจคนี้ใช้ข้อมูลจริงจาก LoanStats_web_small.csv และเชื่อมต่อกับ SQL Server ที่ 35.185.131.47
+**หมายเหตุ**: โปรเจคนี้ใช้ข้อมูลจริงจาก LoanStats_web_small.csv และเชื่อมต่อกับ SQL Server ที่ mssql.minddatatech.com
