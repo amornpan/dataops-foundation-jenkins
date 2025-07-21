@@ -9,7 +9,7 @@ dataops-foundation-jenkins/
 ├── 📄 README.md                     # เอกสารนี้
 ├── 📄 requirements.txt              # Python dependencies
 ├── 📄 Jenkinsfile                   # CI Pipeline
-├── 📄 ETL-dev.py                    # ETL Script หลัก
+├── 📄 etl_main.py                   # ETL Script หลัก
 ├── 
 ├── 📁 data/                         # ไฟล์ข้อมูล
 │   └── 📄 LoanStats_web_small.csv   # ข้อมูลต้นฉบับ (ต้องคัดลอกมาวางเอง)
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 ### 3. รัน ETL Pipeline
 ```bash
 # รัน ETL แบบ manual
-python ETL-dev.py
+python etl_main.py
 
 # รัน Unit Tests
 python tests/test_etl_pipeline.py
@@ -115,7 +115,7 @@ sqlcmd -S 35.185.131.47 -U SA -P Passw0rd123456 -d TestDB -i sql/create_star_sch
 ### รัน ETL Pipeline
 ```python
 # Import และรัน ETL
-from ETL-dev import main
+from etl_main import main
 main()
 ```
 

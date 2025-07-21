@@ -50,7 +50,7 @@ pipeline {
                     if (!fileExists(env.DATA_FILE)) {
                         error "❌ Data file ${env.DATA_FILE} not found!"
                     }
-                    if (!fileExists('ETL-dev.py')) {
+                    if (!fileExists('etl_main.py')) {
                         error "❌ ETL script not found!"
                     }
                 }

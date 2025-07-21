@@ -89,11 +89,17 @@ def test_etl_pipeline():
     print("\n🔍 Testing ETL pipeline...")
     
     try:
+        # Add current directory to Python path
+        import sys
+        import os
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.insert(0, current_dir)
+        
         # Import และทดสอบ ETL functions
-        import ETL_dev
+        import etl_main
         
         # Test column type detection
-        result, column_types = ETL_dev.guess_column_types('data/LoanStats_web_small.csv')
+        result, column_types = etl_main.guess_column_types('data/LoanStats_web_small.csv')
         
         if result:
             print(f"✅ Column type detection working: {len(column_types)} columns analyzed")
