@@ -1,203 +1,282 @@
-# DataOps Foundation Jenkins Project
+# ภาพประกอบการใช้งาน Jenkins Pipeline
 
-ETL Pipeline โปรเจคสำหรับประมวลผลข้อมูล Loan Statistics และสร้าง Star Schema บน SQL Server
+## 📸 หน้าจอสำคัญที่คุณจะเห็น
 
-## 📁 โครงสร้างโปรเจค
-
+### 1. หน้า Jenkins Dashboard
 ```
-dataops-foundation-jenkins/
-├── 📄 README.md                     # เอกสารนี้
-├── 📄 requirements.txt              # Python dependencies
-├── 📄 Jenkinsfile                   # CI Pipeline
-├── 📄 etl_main.py                   # ETL Script หลัก
-├── 
-├── 📁 data/                         # ไฟล์ข้อมูล
-│   └── 📄 LoanStats_web_small.csv   # ข้อมูลต้นฉบับ (ต้องคัดลอกมาวางเอง)
-├── 
-├── 📁 tests/                        # Unit Tests
-│   └── 📄 test_etl_pipeline.py      # การทดสอบ ETL
-├── 
-├── 📁 sql/                          # SQL Scripts
-│   └── 📄 create_star_schema.sql    # สร้าง Star Schema
-├── 
-├── 📁 config/                       # Configuration Files
-│   ├── 📄 database.yaml             # การตั้งค่าฐานข้อมูล
-│   └── 📄 etl_config.yaml          # การตั้งค่า ETL
-├── 
-└── 📁 backups/                      # โฟลเดอร์สำหรับ Backup (สร้างอัตโนมัติ)
+┌─────────────────────────────────────────────────────────┐
+│ Jenkins                                    [🔧] [👤] [?] │
+├─────────────────────────────────────────────────────────┤
+│ 🆕 New Item    📊 People    📈 Build History             │
+├─────────────────────────────────────────────────────────┤
+│ Jobs:                                                   │
+│ ✅ etl-ci-pipeline        #5  ⏰ 2 min ago   🟢 Success │
+│ ❌ backup-job            #2  ⏰ 1 hr ago    🔴 Failed   │
+│ ⚠️ test-pipeline         #8  ⏰ 5 min ago   🟡 Unstable │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 การติดตั้งและใช้งาน
+### 2. หน้า New Item
+```
+┌─────────────────────────────────────────────────────────┐
+│ Enter an item name: [etl-ci-pipeline          ]         │
+│                                                         │
+│ 📁 Freestyle project                                   │
+│ 🔄 Pipeline                          ← เลือกอันนี้      │
+│ 📂 Multi-configuration project                         │
+│ 📋 Folder                                              │
+│                                                         │
+│ [OK]  [Cancel]                                         │
+└─────────────────────────────────────────────────────────┘
+```
 
-### 1. เตรียมข้อมูล
+### 3. หน้า Pipeline Configuration
+```
+┌─────────────────────────────────────────────────────────┐
+│ General                                                 │
+│ ☑ Discard old builds                                   │
+│   Days to keep builds: [30]                            │
+│   Max # of builds: [20]                                │
+│                                                         │
+│ Build Triggers                                          │
+│ ☑ Poll SCM: [H/5 * * * *]                             │
+│                                                         │
+│ Pipeline                                                │
+│ Definition: [Pipeline script from SCM ▼]               │
+│ SCM: [Git ▼]                                           │
+│ Repository URL: [https://github.com/amornpan/...]      │
+│ Credentials: [github-credentials ▼]                    │
+│ Branch: [*/main]                                        │
+│ Script Path: [Jenkinsfile]                             │
+│                                                         │
+│ [Save]  [Apply]  [Cancel]                              │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 4. หน้า Add Credentials
+```
+┌─────────────────────────────────────────────────────────┐
+│ Kind: [Secret text ▼]                                  │
+│ Scope: [Global ▼]                                      │
+│ Secret: [••••••••••••••••••••••••••••••••••••••••••••] │
+│ ID: [mssql-password]                                   │
+│ Description: [SQL Server Password for ETL Pipeline]    │
+│                                                         │
+│ [OK]  [Cancel]                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 5. หน้า Build Console Output
+```
+Started by user Jenkins Admin
+Running in Dockerfile agent
+
+[Pipeline] Start of Pipeline
+[Pipeline] stage
+[Pipeline] { (🔄 Checkout)
+[Pipeline] echo
+=== ETL CI Pipeline Started ===
+[Pipeline] echo
+Build: 5
+[Pipeline] echo
+Branch: main
+[Pipeline] script
+[Pipeline] {
+[Pipeline] fileExists
+[Pipeline] echo
+✅ ETL script found
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+
+[Pipeline] stage
+[Pipeline] { (🐍 Setup Python Environment)
+[Pipeline] echo
+Setting up Python environment...
+[Pipeline] sh
++ rm -rf venv
++ python3 -m venv venv
++ . venv/bin/activate
++ python -m pip install --upgrade pip
+✅ Core packages installed
+[Pipeline] }
+[Pipeline] // stage
+
+[Pipeline] stage
+[Pipeline] { (🧪 Unit Tests)
+[Pipeline] echo
+Running jenkins_test.py...
+[Pipeline] sh
+=== Jenkins-Friendly ETL Tests ===
+--- Basic Imports ---
+✅ Core packages imported successfully
+--- ETL Functions ---
+✅ ETL function test passed: 144 columns
+--- Database Connection ---
+⚠️ Database connection failed: connection timeout
+Note: This is expected if running in CI
+===============================================
+📊 Test Results Summary:
+   Basic Imports: ✅ PASS
+   ETL Functions: ✅ PASS  
+   Database Connection: ✅ PASS
+Overall: 3/3 tests passed (100%)
+🎉 Tests completed successfully!
+[Pipeline] }
+[Pipeline] // stage
+
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=== Pipeline Completed ===
+[Pipeline] echo
+Build Number: 5
+[Pipeline] echo
+Duration: 2 min 34 sec
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] echo
+🎉 CI Pipeline succeeded! Ready for deployment.
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] End of Pipeline
+Finished: SUCCESS
+```
+
+### 6. หน้า Blue Ocean View
+```
+┌─────────────────────────────────────────────────────────┐
+│ etl-ci-pipeline                                  #5     │
+├─────────────────────────────────────────────────────────┤
+│ [🔄]─[🐍]─[🔍]─[📊]─[🧪]─[🔌]─[🏗️]                    │
+│  2s   25s  15s  8s   12s  5s   7s                      │
+│  ✅   ✅   ⚠️   ✅   ✅   ⚠️   ✅                        │
+│                                                         │
+│ Total Duration: 2m 34s                                 │
+│ Status: ✅ SUCCESS                                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 🎯 ขั้นตอนการใช้งานจริง (Step by Step)
+
+### การรัน Pipeline ครั้งแรก
+
+#### Step 1: เข้าสู่ Jenkins
+1. เปิดเบราว์เซอร์ไปที่: `http://your-jenkins-server:8080`
+2. Login ด้วย username/password ที่สร้างไว้
+3. คุณจะเห็นหน้า Dashboard
+
+#### Step 2: เลือก Pipeline Job
+1. ในหน้า Dashboard คลิกที่ `etl-ci-pipeline`
+2. คุณจะเห็นหน้าประวัติ builds ของ job นี้
+
+#### Step 3: รัน Build
+1. คลิกปุ่ม **"Build Now"** ทางซ้าย
+2. Build ใหม่จะปรากฏใน **Build History**
+3. คลิกที่หมายเลข build (เช่น `#1`) เพื่อดูรายละเอียด
+
+#### Step 4: ดู Console Output
+1. ในหน้า build คลิก **"Console Output"**
+2. คุณจะเห็นข้อความแบบ real-time ของการทำงาน
+3. รอจน pipeline ทำงานเสร็จ
+
+### การแปลผลลัพธ์
+
+#### Build สำเร็จ (🟢 SUCCESS)
+```
+✅ ทุก stage ผ่านหมด
+✅ สีเขียวใน build history
+✅ ข้อความ "🎉 CI Pipeline succeeded!"
+```
+
+#### Build ล้มเหลว (🔴 FAILED)
+```
+❌ มี stage ที่ล้มเหลว
+❌ สีแดงใน build history  
+❌ ข้อความ "❌ CI Pipeline failed!"
+❌ ดู Console Output เพื่อหาสาเหตุ
+```
+
+#### Build ไม่เสถียร (🟡 UNSTABLE)
+```
+⚠️ บาง test ผ่าน บาง test ล้มเหลว
+⚠️ สีเหลืองใน build history
+⚠️ ข้อความ "⚠️ CI Pipeline unstable"
+```
+
+## 🛠️ การแก้ไขปัญหาเบื้องต้น
+
+### ปัญหา: Build ติด "Pending"
+**อาการ**: Build ไม่เริ่มทำงาน ค้างที่สถานะ "Pending"
+
+**สาเหตุ**:
+- Jenkins agent ไม่พร้อม
+- Resource ไม่เพียงพอ
+
+**วิธีแก้**:
+1. ตรวจสอบ **Manage Jenkins** → **Manage Nodes**
+2. ดูว่า agent online หรือไม่
+3. รีสตาร์ท Jenkins ถ้าจำเป็น
+
+### ปัญหา: "Credentials not found"
+**อาการ**: 
+```
+ERROR: mssql-password
+Finished: FAILURE
+```
+
+**วิธีแก้**:
+1. ไป **Manage Jenkins** → **Manage Credentials**
+2. ตรวจสอบว่ามี credential ID ที่ถูกต้อง
+3. สร้าง credential ใหม่ถ้าจำเป็น
+
+### ปัญหา: Python Module ไม่พบ
+**อาการ**:
+```
+ModuleNotFoundError: No module named 'pandas'
+```
+
+**วิธีแก้**:
+1. ตรวจสอบ virtual environment ใน pipeline
+2. ดู Console Output ส่วน "Setup Python Environment"
+3. แก้ไข requirements.txt ถ้าจำเป็น
+
+## 📊 การ Monitor และ Maintenance
+
+### การดู Trends
+```
+Jenkins Dashboard → etl-ci-pipeline → Trend
+```
+คุณจะเห็น:
+- Build success rate
+- Build duration trends
+- Test result trends
+
+### การตั้งค่า Notifications
+1. **Configure job** → **Post-build Actions**
+2. เพิ่ม **E-mail Notification**
+3. กรอก email addresses ที่ต้องการแจ้งเตือน
+
+### การ Backup
 ```bash
-# คัดลอกไฟล์ข้อมูลจากโฟลเดอร์เดิม
-copy "C:\Users\Asus\dataops-foundation\LoanStats_web_small.csv" "data\"
+# Backup Jenkins configuration
+docker exec jenkins-etl tar -czf /tmp/jenkins-backup.tar.gz /var/jenkins_home
+
+# Copy ออกมา
+docker cp jenkins-etl:/tmp/jenkins-backup.tar.gz ./
 ```
 
-### 2. ติดตั้ง Dependencies
-```bash
-# สร้าง virtual environment
-python -m venv venv
-venv\Scripts\activate
+## 🎯 Next Steps
 
-# ติดตั้ง packages
-pip install -r requirements.txt
-```
+เมื่อ Pipeline ทำงานได้แล้ว คุณสามารถ:
 
-### 3. รัน ETL Pipeline
-```bash
-# รัน ETL แบบ manual
-python etl_main.py
+1. **เพิ่ม Stages ใหม่** เช่น deployment, integration tests
+2. **ตั้งค่า Webhooks** สำหรับ auto-trigger จาก Git
+3. **สร้าง Multi-branch Pipeline** สำหรับ development branches
+4. **เพิ่ม Security scanning** และ compliance checks
+5. **ตั้งค่า Monitoring** และ alerting ที่ละเอียดขึ้น
 
-# รัน Unit Tests
-python tests/test_etl_pipeline.py
-```
-
-### 4. ตั้งค่า Database
-```sql
--- เชื่อมต่อไปยัง mssql.minddatatech.com ด้วย SA user
--- รัน SQL Script
-sqlcmd -S mssql.minddatatech.com -U SA -P Passw0rd123456 -d TestDB -i sql/create_star_schema.sql
-```
-
-## 🎯 คุณสมบัติหลัก
-
-### ETL Pipeline Features
-- ✅ **Data Quality Checking**: ตรวจสอบ missing data และกรองข้อมูล
-- ✅ **Data Transformation**: แปลง date, percentage และ data types
-- ✅ **Star Schema Creation**: สร้าง dimension และ fact tables
-- ✅ **Database Loading**: โหลดข้อมูลไปยัง SQL Server
-- ✅ **Error Handling**: จัดการข้อผิดพลาดและ validation
-
-### Unit Testing Features
-- ✅ **Real Data Testing**: ใช้ข้อมูลจริงจาก CSV file
-- ✅ **Data Quality Tests**: ทดสอบคุณภาพข้อมูล
-- ✅ **ETL Logic Tests**: ทดสอบขั้นตอน ETL ทั้งหมด
-- ✅ **Business Rules Tests**: ทดสอบ business logic
-- ✅ **Performance Tests**: ทดสอบประสิทธิภาพการประมวลผล
-
-### CI/CD Features
-- ✅ **Jenkins Pipeline**: CI/CD automation
-- ✅ **Code Quality Checks**: Linting และ formatting
-- ✅ **Automated Testing**: รัน unit tests อัตโนมัติ
-- ✅ **Database Validation**: ทดสอบการเชื่อมต่อฐานข้อมูล
-- ✅ **Performance Monitoring**: ตรวจสอบ memory และเวลาประมวลผล
-
-## 📊 Star Schema Design
-
-### Dimension Tables
-- **home_ownership_dim**: ประเภทการเป็นเจ้าของบ้าน
-- **loan_status_dim**: สถานะของสินเชื่อ
-- **issue_d_dim**: วันที่ออกสินเชื่อ (พร้อม date attributes)
-
-### Fact Table
-- **loans_fact**: ข้อมูลสินเชื่อหลักพร้อม calculated metrics
-
-### Analytical Views
-- **vw_loan_summary**: สรุปข้อมูลสินเชื่อแบบรายละเอียด
-- **vw_monthly_trends**: แนวโน้มรายเดือน
-
-## 🔧 การตั้งค่า Jenkins
-
-### 1. สร้าง Credentials
-- **ID**: `mssql-password`
-- **Type**: Secret text
-- **Value**: `Passw0rd123456`
-
-### 2. สร้าง Pipeline Job
-- **Job Name**: `etl-ci-pipeline`
-- **Type**: Pipeline
-- **Script**: ใช้ Jenkinsfile ในโปรเจค
-
-## 📈 ตัวอย่างการใช้งาน
-
-### รัน ETL Pipeline
-```python
-# Import และรัน ETL
-from etl_main import main
-main()
-```
-
-### Query ข้อมูลจาก Star Schema
-```sql
--- ดูสรุปสินเชื่อตาม home ownership
-SELECT * FROM vw_loan_summary 
-WHERE year = 2023
-ORDER BY total_loan_amount DESC;
-
--- ดูแนวโน้มรายเดือน
-SELECT * FROM vw_monthly_trends
-ORDER BY year DESC, month DESC;
-```
-
-### รัน Unit Tests
-```bash
-# รัน tests ทั้งหมด
-python tests/test_etl_pipeline.py
-
-# ผลลัพธ์จะแสดงสถิติข้อมูลจริง
-```
-
-## ⚙️ การกำหนดค่า
-
-### Database Configuration
-แก้ไขไฟล์ `config/database.yaml`:
-```yaml
-database:
-  development:
-    server: "mssql.minddatatech.com"
-    database: "TestDB"
-    username: "SA"
-```
-
-### ETL Configuration
-แก้ไขไฟล์ `config/etl_config.yaml`:
-```yaml
-etl:
-  data_quality:
-    max_missing_percentage: 30
-    acceptable_max_null: 26
-```
-
-## 🐛 การแก้ไขปัญหา
-
-### ปัญหาทั่วไป
-
-1. **ไม่พบไฟล์ CSV**
-   ```
-   FileNotFoundError: ไม่พบไฟล์ data/LoanStats_web_small.csv
-   ```
-   **วิธีแก้**: คัดลอกไฟล์ CSV ไปวางในโฟลเดอร์ `data/`
-
-2. **Database Connection Error**
-   ```
-   Database connection failed
-   ```
-   **วิธีแก้**: ตรวจสอบ network connectivity และ credentials
-
-3. **Memory Error**
-   ```
-   Memory usage exceeds limit
-   ```
-   **วิธีแก้**: ลดขนาด chunk_size ในการประมวลผล
-
-## 📞 การสนับสนุน
-
-- ตรวจสอบ logs ใน Jenkins build
-- ดู database error logs
-- ทดสอบส่วนประกอบแยกส่วนเพื่อหาปัญหา
-- ตรวจสอบ system resources ระหว่างการรัน ETL
-
-## 🎉 การพัฒนาต่อ
-
-### ขั้นตอนต่อไป
-1. เพิ่ม data validation rules
-2. สร้าง dashboard สำหรับ monitoring
-3. เพิ่ม incremental loading
-4. ปรับปรุง performance optimization
-5. เพิ่ม alerting และ notification
-
----
-
-**หมายเหตุ**: โปรเจคนี้ใช้ข้อมูลจริงจาก LoanStats_web_small.csv และเชื่อมต่อกับ SQL Server ที่ mssql.minddatatech.com
+Pipeline นี้เป็นจุดเริ่มต้นที่ดีสำหรับ CI/CD ใน Data Engineering!
