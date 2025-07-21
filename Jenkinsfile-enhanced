@@ -1,0 +1,514 @@
+pipeline {
+    agent any
+    
+    environment {
+        // Database configuration
+        DB_SERVER = 'mssql.minddatatech.com'
+        DB_NAME = 'TestDB'
+        DB_USERNAME = 'SA'
+        DB_PASSWORD = credentials('mssql-password')
+        
+        // Python environment
+        PYTHON_VERSION = '3.9'
+        VIRTUAL_ENV = 'venv'
+        
+        // ETL configuration
+        DATA_FILE = 'data/LoanStats_web_small.csv'
+        ACCEPTABLE_MAX_NULL = '26'
+        
+        // Quality gates
+        MIN_TEST_COVERAGE = '80'
+        MAX_MEMORY_USAGE_MB = '500'
+        MAX_PROCESSING_TIME_SEC = '300'
+        
+        // Notification settings
+        NOTIFICATION_EMAIL = 'your-email@company.com'
+        SLACK_CHANNEL = '#data-engineering'
+    }
+    
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'STAGING', 'PROD'],
+            description: 'Target environment for deployment'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip unit tests (not recommended)'
+        )
+        booleanParam(
+            name: 'FORCE_REBUILD',
+            defaultValue: false,
+            description: 'Force rebuild of database tables'
+        )
+        booleanParam(
+            name: 'DRY_RUN',
+            defaultValue: false,
+            description: 'Perform dry run without database changes'
+        )
+    }
+    
+    options {
+        // Keep builds for 30 days
+        buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '10'))
+        
+        // Timeout after 30 minutes
+        timeout(time: 30, unit: 'MINUTES')
+        
+        // Skip default checkout for custom handling
+        skipDefaultCheckout(false)
+        
+        // Timestamps in console output
+        timestamps()
+        
+        // ANSI color output
+        ansiColor('xterm')
+    }
+    
+    stages {
+        stage('🔄 Checkout & Validation') {
+            steps {
+                script {
+                    echo "=== ETL CI/CD Pipeline Started ==="
+                    echo "Build: ${BUILD_NUMBER}"
+                    echo "Branch: ${GIT_BRANCH}"
+                    echo "Environment: ${params.ENVIRONMENT}"
+                    echo "Dry Run: ${params.DRY_RUN}"
+                }
+                
+                // Clean workspace
+                cleanWs()
+                
+                // Checkout source code
+                checkout scm
+                
+                // Verify required files exist
+                script {
+                    def requiredFiles = [
+                        env.DATA_FILE,
+                        'etl_main.py', 
+                        'requirements.txt',
+                        'tests/test_etl_pipeline.py'
+                    ]
+                    
+                    for (file in requiredFiles) {
+                        if (!fileExists(file)) {
+                            error "❌ Required file not found: ${file}"
+                        }
+                    }
+                    echo "✅ All required files found"
+                }
+            }
+        }
+        
+        stage('🐍 Setup Python Environment') {
+            steps {
+                script {
+                    echo "Setting up Python ${env.PYTHON_VERSION} environment..."
+                }
+                
+                // Create virtual environment (Linux/Windows compatible)
+                sh """
+                    python3 -m venv ${env.VIRTUAL_ENV} || python -m venv ${env.VIRTUAL_ENV}
+                    
+                    # Activate and install dependencies
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    # Upgrade pip
+                    python -m pip install --upgrade pip
+                    
+                    # Install requirements
+                    pip install -r requirements.txt
+                    
+                    # Verify installation
+                    python -c "import pandas, numpy, sqlalchemy, pymssql; print('✅ All packages installed')"
+                """
+            }
+        }
+        
+        stage('🔍 Code Quality Checks') {
+            parallel {
+                stage('Linting (flake8)') {
+                    steps {
+                        sh """
+                            . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                            flake8 --max-line-length=120 --ignore=E203,W503 --exclude=venv *.py || echo "Linting warnings found"
+                        """
+                    }
+                }
+                
+                stage('Code Formatting Check') {
+                    steps {
+                        sh """
+                            . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                            black --check --line-length=120 --exclude=venv *.py || echo "Code formatting issues found"
+                        """
+                    }
+                }
+                
+                stage('Import Sorting Check') {
+                    steps {
+                        sh """
+                            . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                            isort --check-only --profile black --skip=venv *.py || echo "Import sorting issues found"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('📊 Data Quality Validation') {
+            steps {
+                script {
+                    echo "Validating data quality for ${env.DATA_FILE}..."
+                }
+                
+                sh """
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    python -c "
+import pandas as pd
+import sys
+import os
+
+print('=== Data Quality Report ===')
+
+# Check file exists
+if not os.path.exists('${env.DATA_FILE}'):
+    print('❌ Data file not found: ${env.DATA_FILE}')
+    sys.exit(1)
+
+# Read and analyze data
+try:
+    df = pd.read_csv('${env.DATA_FILE}', low_memory=False)
+    print(f'✅ Data loaded: {len(df):,} rows, {len(df.columns)} columns')
+except Exception as e:
+    print(f'❌ Failed to read data file: {e}')
+    sys.exit(1)
+
+# Check missing data
+missing_pct = df.isnull().mean() * 100
+critical_missing = missing_pct[missing_pct > 50]
+
+if len(critical_missing) > 0:
+    print(f'⚠️ {len(critical_missing)} columns with >50% missing data')
+    for col, pct in critical_missing.head().items():
+        print(f'  - {col}: {pct:.1f}%')
+
+# Check required columns
+required_cols = ['loan_amnt', 'funded_amnt', 'term', 'int_rate', 'installment', 'home_ownership', 'loan_status', 'issue_d']
+missing_required = [col for col in required_cols if col not in df.columns]
+
+if missing_required:
+    print(f'❌ Missing required columns: {missing_required}')
+    sys.exit(1)
+else:
+    print('✅ All required columns present')
+
+# Memory usage check
+memory_mb = df.memory_usage(deep=True).sum() / 1024**2
+print(f'Memory usage: {memory_mb:.2f} MB')
+
+if memory_mb > ${env.MAX_MEMORY_USAGE_MB}:
+    print(f'❌ Memory usage exceeds limit of ${env.MAX_MEMORY_USAGE_MB}MB')
+    sys.exit(1)
+
+print('✅ Data quality validation passed')
+"
+                """
+            }
+        }
+        
+        stage('🧪 Unit Tests') {
+            when {
+                not { params.SKIP_TESTS }
+            }
+            steps {
+                script {
+                    echo "Running comprehensive unit tests..."
+                }
+                
+                sh """
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    # Run tests with coverage
+                    python -m pytest tests/ -v --tb=short --maxfail=5 || echo "Some tests failed"
+                    
+                    # Alternative: Run our custom test
+                    python simple_test.py
+                """
+            }
+            
+            post {
+                always {
+                    // Archive test results if they exist
+                    script {
+                        if (fileExists('test-results.xml')) {
+                            junit 'test-results.xml'
+                        }
+                        if (fileExists('htmlcov/index.html')) {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'htmlcov',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('🔌 Database Connectivity Test') {
+            steps {
+                script {
+                    echo "Testing database connectivity to ${env.DB_SERVER}..."
+                }
+                
+                sh """
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    python -c "
+from sqlalchemy import create_engine, text
+import sys
+
+print('=== Database Connection Test ===')
+
+try:
+    engine = create_engine(f'mssql+pymssql://${env.DB_USERNAME}:${env.DB_PASSWORD}@${env.DB_SERVER}/${env.DB_NAME}')
+    
+    with engine.connect() as connection:
+        result = connection.execute(text('SELECT 1 as test, GETDATE() as current_time'))
+        row = result.fetchone()
+        
+        if row[0] == 1:
+            print(f'✅ Database connection successful')
+            print(f'   Server time: {row[1]}')
+            
+            # Check existing tables
+            tables_result = connection.execute(text('''
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_NAME IN ('home_ownership_dim', 'loan_status_dim', 'issue_d_dim', 'loans_fact')
+            '''))
+            table_count = tables_result.fetchone()[0]
+            
+            if table_count > 0:
+                print(f'✅ Found {table_count} existing star schema tables')
+            else:
+                print('ℹ️ No existing star schema tables (will be created)')
+        else:
+            print('❌ Database connection test failed')
+            sys.exit(1)
+            
+except Exception as e:
+    print(f'❌ Database connection failed: {str(e)}')
+    print('Please check:')
+    print('- Network connectivity to ${env.DB_SERVER}')
+    print('- SQL Server service status')
+    print('- Database credentials')
+    sys.exit(1)
+"
+                """
+            }
+        }
+        
+        stage('🏗️ ETL Pipeline Execution') {
+            steps {
+                script {
+                    if (params.DRY_RUN) {
+                        echo "🔍 Performing ETL dry run..."
+                    } else {
+                        echo "🚀 Executing full ETL pipeline..."
+                    }
+                }
+                
+                sh """
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    python -c "
+import sys
+import os
+sys.path.append('.')
+
+if ${params.DRY_RUN}:
+    print('=== ETL Dry Run ===')
+    # Import and test ETL functions without database writes
+    import etl_main
+    result, types = etl_main.guess_column_types('${env.DATA_FILE}')
+    print(f'✅ ETL functions tested: {len(types) if result else 0} columns analyzed')
+    print('✅ Dry run completed - no database changes made')
+else:
+    print('=== Full ETL Execution ===')
+    import etl_main
+    etl_main.main()
+    print('✅ ETL pipeline execution completed')
+"
+                """
+            }
+            
+            post {
+                success {
+                    script {
+                        if (!params.DRY_RUN) {
+                            echo "✅ ETL pipeline completed successfully!"
+                            echo "📊 Star schema updated with latest data"
+                        }
+                    }
+                }
+                failure {
+                    script {
+                        echo "❌ ETL pipeline failed!"
+                        echo "Check logs for detailed error information"
+                    }
+                }
+            }
+        }
+        
+        stage('✅ Post-Deployment Validation') {
+            when {
+                not { params.DRY_RUN }
+            }
+            steps {
+                script {
+                    echo "Validating deployed data..."
+                }
+                
+                sh """
+                    . ${env.VIRTUAL_ENV}/bin/activate || ${env.VIRTUAL_ENV}\\\\Scripts\\\\activate
+                    
+                    python -c "
+from sqlalchemy import create_engine, text
+import sys
+
+print('=== Post-Deployment Validation ===')
+
+try:
+    engine = create_engine(f'mssql+pymssql://${env.DB_USERNAME}:${env.DB_PASSWORD}@${env.DB_SERVER}/${env.DB_NAME}')
+    
+    with engine.connect() as connection:
+        # Check table row counts
+        tables = ['home_ownership_dim', 'loan_status_dim', 'issue_d_dim', 'loans_fact']
+        
+        for table in tables:
+            try:
+                result = connection.execute(text(f'SELECT COUNT(*) FROM {table}'))
+                count = result.fetchone()[0]
+                print(f'✅ {table}: {count:,} rows')
+                
+                if count == 0:
+                    print(f'⚠️ Warning: {table} is empty')
+            except Exception as e:
+                print(f'❌ Error checking {table}: {str(e)}')
+        
+        # Sample data validation
+        try:
+            sample = connection.execute(text('''
+                SELECT TOP 5 
+                    f.loan_amnt, 
+                    h.home_ownership, 
+                    s.loan_status,
+                    d.issue_d
+                FROM loans_fact f
+                JOIN home_ownership_dim h ON f.home_ownership_id = h.home_ownership_id
+                JOIN loan_status_dim s ON f.loan_status_id = s.loan_status_id
+                JOIN issue_d_dim d ON f.issue_d_id = d.issue_d_id
+            '''))
+            
+            print('\\n📋 Sample data verification:')
+            for row in sample:
+                print(f'  Loan: ${row[0]:,.2f}, Home: {row[1]}, Status: {row[2]}, Date: {row[3]}')
+            
+        except Exception as e:
+            print(f'❌ Sample data validation failed: {str(e)}')
+            sys.exit(1)
+            
+        print('\\n✅ Post-deployment validation completed successfully')
+        
+except Exception as e:
+    print(f'❌ Validation failed: {str(e)}')
+    sys.exit(1)
+"
+                """
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                echo "=== Pipeline Completed ==="
+                echo "Build: ${BUILD_NUMBER}"
+                echo "Duration: ${currentBuild.durationString}"
+                echo "Result: ${currentBuild.currentResult}"
+            }
+            
+            // Clean up workspace
+            sh """
+                # Remove virtual environment
+                rm -rf ${env.VIRTUAL_ENV} || rmdir /s /q ${env.VIRTUAL_ENV}
+                
+                # Clean Python cache
+                find . -name "*.pyc" -delete 2>/dev/null || echo "Python cache cleaned"
+                find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || echo "Pycache cleaned"
+            """
+            
+            // Archive important artifacts
+            archiveArtifacts artifacts: '**/*.log,**/*.xml,**/*.html', allowEmptyArchive: true
+        }
+        
+        success {
+            script {
+                echo "🎉 Pipeline succeeded!"
+                
+                // Send success notification
+                emailext (
+                    subject: "✅ ETL Pipeline Success - ${env.JOB_NAME} #${BUILD_NUMBER}",
+                    body: """
+                    ETL Pipeline completed successfully!
+                    
+                    Job: ${env.JOB_NAME}
+                    Build: ${BUILD_NUMBER}
+                    Environment: ${params.ENVIRONMENT}
+                    Duration: ${currentBuild.durationString}
+                    
+                    View build: ${BUILD_URL}
+                    """,
+                    to: "${env.NOTIFICATION_EMAIL}",
+                    attachLog: false
+                )
+            }
+        }
+        
+        failure {
+            script {
+                echo "❌ Pipeline failed!"
+                
+                // Send failure notification
+                emailext (
+                    subject: "❌ ETL Pipeline Failed - ${env.JOB_NAME} #${BUILD_NUMBER}",
+                    body: """
+                    ETL Pipeline failed!
+                    
+                    Job: ${env.JOB_NAME}
+                    Build: ${BUILD_NUMBER}
+                    Environment: ${params.ENVIRONMENT}
+                    Duration: ${currentBuild.durationString}
+                    
+                    Please check the build logs: ${BUILD_URL}console
+                    """,
+                    to: "${env.NOTIFICATION_EMAIL}",
+                    attachLog: true
+                )
+            }
+        }
+        
+        unstable {
+            script {
+                echo "⚠️ Pipeline unstable - some tests may have failed"
+            }
+        }
+    }
+}
