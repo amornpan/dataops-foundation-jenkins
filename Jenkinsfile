@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         // Database configuration
-        DB_SERVER = '35.185.131.47'
+        DB_SERVER = 'mssql.minddatatech.com'
         DB_NAME = 'TestDB'
         DB_USERNAME = 'SA'
         DB_PASSWORD = credentials('mssql-password')  // Store in Jenkins credentials

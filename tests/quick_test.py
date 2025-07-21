@@ -44,7 +44,7 @@ def test_database_connection():
     """ทดสอบการเชื่อมต่อฐานข้อมูล"""
     print("\n🔍 Testing database connection...")
     
-    server = '35.185.131.47'
+    server = 'mssql.minddatatech.com'
     database = 'TestDB'
     username = 'SA'
     password = 'Passw0rd123456'
@@ -79,7 +79,7 @@ def test_database_connection():
     except Exception as e:
         print(f"❌ Database connection failed: {str(e)}")
         print("   Please check:")
-        print("   - Network connectivity to 35.185.131.47")
+        print("   - Network connectivity to mssql.minddatatech.com")
         print("   - SQL Server is running")
         print("   - Credentials are correct")
         return False

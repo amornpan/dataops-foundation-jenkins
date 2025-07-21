@@ -1,17 +1,17 @@
 database:
   development:
-    server: "35.185.131.47"
+    server: "mssql.minddatatech.com"
     database: "TestDB"
     username: "SA"
     # Password should be stored in Jenkins credentials
     
   staging:
-    server: "35.185.131.47" 
+    server: "mssql.minddatatech.com" 
     database: "TestDB_Staging"
     username: "SA"
     
   production:
-    server: "35.185.131.47"
+    server: "mssql.minddatatech.com"
     database: "TestDB_Prod" 
     username: "SA"
 

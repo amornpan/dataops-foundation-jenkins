@@ -48,8 +48,8 @@ def main():
     file_path = 'data/LoanStats_web_small.csv'
     acceptableMax_null = 26
     
-    # Database configuration - ปรับให้ใช้ 35.185.131.47
-    server = '35.185.131.47'
+    # Database configuration - ปรับให้ใช้ mssql.minddatatech.com
+    server = 'mssql.minddatatech.com'
     database = 'TestDB'
     username = 'SA'
     password = 'Passw0rd123456'
